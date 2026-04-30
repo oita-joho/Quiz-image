@@ -54,7 +54,7 @@ function loadQuestionsFromText(text) {
   generated = [];
   currentTitle = "";
   paperArea.className = "";
-  paperArea.innerHTML = "<div class=\"empty-preview\">まだ作成していません。</div>";
+  paperArea.innerHTML = '<div class="empty-preview">まだ作成していません。</div>';
 }
 
 function parseCsv(text) {
@@ -105,7 +105,7 @@ function parseCsv(text) {
     .map((r) => {
       const obj = {};
       headers.forEach((h, i) => {
-        obj[h] = (r[i] || "").trim();
+        obj[h.trim()] = (r[i] || "").trim();
       });
       return obj;
     })
@@ -135,6 +135,7 @@ function normalizeRow(r) {
     question_no: String(r.question_no || "").trim(),
     title_no: String(r.title_no || "").trim(),
     title: String(r.title || "").trim(),
+    image: String(r.image || "").trim(),
     question: String(r.question || "").trim(),
     choices,
     answerIndex: compactAnswerIndex,
@@ -240,6 +241,7 @@ function buildQuestion(q, no) {
     title: q.title,
     field_no: q.field_no,
     question_no: q.question_no,
+    image: q.image,
     question: q.question,
     shownChoices,
     correctDisplayIndex,
@@ -300,6 +302,17 @@ function renderQuestions(items, labels, mode) {
             ${mode === "answer" ? labels[item.correctDisplayIndex] : ""}
           </div>
           <div class="question-main">
+
+            ${
+              item.image
+                ? `
+              <div class="question-image-wrap">
+                <img src="${escapeHtml(item.image)}" class="question-image" alt="問題画像">
+              </div>
+            `
+                : ""
+            }
+
             <div class="question-text">
               <strong>${item.no}.</strong>
               <span class="question-title-inline">${escapeHtml(item.title)}</span>
@@ -328,7 +341,7 @@ async function savePdf(mode) {
   }
 
   renderPaper(currentTitle, generated, mode);
-  await new Promise((resolve) => setTimeout(resolve, 200));
+  await new Promise((resolve) => setTimeout(resolve, 500));
 
   const filename =
     mode === "question"
@@ -412,7 +425,7 @@ function resetAll() {
 
   titleCheckList.innerHTML = "まだ読み込んでいません。";
   paperArea.className = "";
-  paperArea.innerHTML = "<div class=\"empty-preview\">まだ作成していません。</div>";
+  paperArea.innerHTML = '<div class="empty-preview">まだ作成していません。</div>';
 
   statusEl.textContent = "初期化しました。";
 }
