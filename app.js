@@ -366,14 +366,15 @@ function renderQuestions(items, labels, mode, usedImages = new Set()) {
           </div>
 
           <div class="question-main">
-            ${imageHtml}
 
-            <div class="question-text">
-              <strong>${item.no}.</strong>
-              ${escapeHtml(item.question)}
-            </div>
+  <div class="question-text">
+    <strong>${item.no}.</strong>
+    ${escapeHtml(item.question)}
+  </div>
 
-            <div class="choices">
+  ${imageHtml}
+
+  <div class="choices">
               ${item.shownChoices
                 .map(
                   (c, i) => `
