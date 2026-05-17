@@ -198,8 +198,8 @@ function makeQuiz() {
 
   const selectedTitleKeys = getSelectedTitleKeys();
 
-  if (selectedTitleKeys.length !== 1) {
-    statusEl.textContent = "出題するタイトルは1つだけ選んでください。";
+  if (!selectedTitleKeys.length) {
+    statusEl.textContent = "出題するタイトルを1つ以上選んでください。";
     return;
   }
 
@@ -219,7 +219,9 @@ function makeQuiz() {
     .slice(0, count)
     .map((q, i) => buildQuestion(q, i + 1));
 
-  const csvTitle = generated[0]?.title || "小テスト";
+  const uniqueTitles = [...new Set(generated.map((q) => q.title).filter(Boolean))];
+  const csvTitle = uniqueTitles.join("・") || "小テスト";
+
   currentTitle = inputTitle || csvTitle;
 
   renderPaper(currentTitle, generated, "answer");
