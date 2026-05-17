@@ -277,6 +277,9 @@ function renderPaper(title, items, mode = "answer") {
   paperArea.className = "preview-sheet multi-page";
   paperArea.innerHTML = pages
     .map((pageItems, pageIndex) => {
+      const previousPages = pages.slice(0, pageIndex).flat();
+      const usedImages = new Set(previousPages.map((x) => x.image).filter(Boolean));
+
       if (pageIndex === 0) {
         return `
           <section class="pdf-page first-page">
@@ -290,7 +293,7 @@ function renderPaper(title, items, mode = "answer") {
             </div>
 
             <div class="question-list">
-              ${renderQuestions(pageItems, labels, mode)}
+              ${renderQuestions(pageItems, labels, mode, usedImages)}
             </div>
           </section>
         `;
@@ -301,7 +304,7 @@ function renderPaper(title, items, mode = "answer") {
           <h1 class="paper-title sub-title">${escapeHtml(title)}</h1>
 
           <div class="question-list">
-            ${renderQuestions(pageItems, labels, mode)}
+            ${renderQuestions(pageItems, labels, mode, usedImages)}
           </div>
         </section>
       `;
@@ -309,10 +312,21 @@ function renderPaper(title, items, mode = "answer") {
     .join("");
 }
 
-function renderQuestions(items, labels, mode) {
+function renderQuestions(items, labels, mode, usedImages = new Set()) {
   return items
-    .map(
-      (item) => `
+    .map((item) => {
+      let imageHtml = "";
+
+      if (item.image && !usedImages.has(item.image)) {
+        imageHtml = `
+          <div class="question-image-wrap">
+            <img src="${escapeHtml(fixImagePath(item.image))}" class="question-image" alt="問題画像">
+          </div>
+        `;
+        usedImages.add(item.image);
+      }
+
+      return `
       <div class="question">
         <div class="answer-row">
           <div class="answer-box ${mode === "answer" ? "answer-box-filled answer-red" : ""}">
@@ -320,16 +334,7 @@ function renderQuestions(items, labels, mode) {
           </div>
 
           <div class="question-main">
-
-            ${
-              item.image
-                ? `
-              <div class="question-image-wrap">
-                <img src="${escapeHtml(item.image)}" class="question-image" alt="問題画像">
-              </div>
-            `
-                : ""
-            }
+            ${imageHtml}
 
             <div class="question-text">
               <strong>${item.no}.</strong>
@@ -348,9 +353,25 @@ function renderQuestions(items, labels, mode) {
           </div>
         </div>
       </div>
-    `
-    )
+    `;
+    })
     .join("");
+}
+
+function fixImagePath(path) {
+  const p = String(path || "").trim();
+
+  if (!p) return "";
+
+  if (p.startsWith("http://") || p.startsWith("https://")) {
+    return p;
+  }
+
+  if (p.startsWith("./")) {
+    return p;
+  }
+
+  return "./" + p;
 }
 
 async function savePdf(mode) {
@@ -360,7 +381,7 @@ async function savePdf(mode) {
   }
 
   renderPaper(currentTitle, generated, mode);
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await new Promise((resolve) => setTimeout(resolve, 800));
 
   const filename =
     mode === "question"
@@ -374,6 +395,7 @@ async function savePdf(mode) {
     html2canvas: {
       scale: 2,
       useCORS: true,
+      allowTaint: true,
       backgroundColor: "#ffffff",
       scrollX: 0,
       scrollY: 0,
