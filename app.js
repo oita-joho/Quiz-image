@@ -206,16 +206,47 @@ function makeQuiz() {
   const inputTitle = $("titleInput").value.trim();
   const count = Math.max(1, Number($("countInput").value || 5));
 
-  const pool = allQuestions.filter((q) =>
-    selectedTitleKeys.includes(makeTitleKey(q))
-  );
-
-  if (pool.length < count) {
-    statusEl.textContent = `対象問題が不足しています。現在 ${pool.length}問、必要 ${count}問です。`;
+  if (count < selectedTitleKeys.length) {
+    statusEl.textContent = `作成問題数を ${selectedTitleKeys.length} 問以上にしてください。選択したタイトルごとに最低1題出題します。`;
     return;
   }
 
-  generated = shuffle([...pool])
+  const selectedQuestions = [];
+
+  selectedTitleKeys.forEach((key) => {
+    const group = allQuestions.filter((q) => makeTitleKey(q) === key);
+
+    if (!group.length) {
+      statusEl.textContent = "選択したタイトルに問題がありません。";
+      return;
+    }
+
+    selectedQuestions.push(shuffle([...group])[0]);
+  });
+
+  const selectedIds = new Set(
+    selectedQuestions.map((q) => `${makeTitleKey(q)}__${q.question_no}__${q.question}`)
+  );
+
+  const restPool = allQuestions.filter((q) => {
+    const key = makeTitleKey(q);
+    const id = `${key}__${q.question_no}__${q.question}`;
+    return selectedTitleKeys.includes(key) && !selectedIds.has(id);
+  });
+
+  const needMore = count - selectedQuestions.length;
+
+  if (restPool.length < needMore) {
+    statusEl.textContent = `対象問題が不足しています。現在 ${selectedQuestions.length + restPool.length}問、必要 ${count}問です。`;
+    return;
+  }
+
+  const finalQuestions = [
+    ...selectedQuestions,
+    ...shuffle([...restPool]).slice(0, needMore),
+  ];
+
+  generated = shuffle(finalQuestions)
     .slice(0, count)
     .map((q, i) => buildQuestion(q, i + 1));
 
@@ -227,7 +258,6 @@ function makeQuiz() {
   renderPaper(currentTitle, generated, "answer");
   statusEl.textContent = `${currentTitle} を ${generated.length}問作成しました。`;
 }
-
 function buildQuestion(q, no) {
   let shownChoices;
   let correctDisplayIndex;
