@@ -8,7 +8,7 @@ let allQuestions = [];
 let generated = [];
 let currentTitle = "";
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = 4;
 
 $("loadBtn").addEventListener("click", loadCsv);
 $("makeBtn").addEventListener("click", makeQuiz);
@@ -63,6 +63,8 @@ function parseCsv(text) {
   let cell = "";
   let inQuotes = false;
 
+  text = text.replace(/^\uFEFF/, "");
+
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
     const next = text[i + 1];
@@ -88,7 +90,6 @@ function parseCsv(text) {
         row = [];
         cell = "";
       } else if (ch === "\r") {
-        // 何もしない
       } else {
         cell += ch;
       }
@@ -101,6 +102,7 @@ function parseCsv(text) {
   }
 
   const headers = rows.shift() || [];
+
   return rows
     .map((r) => {
       const obj = {};
@@ -114,6 +116,7 @@ function parseCsv(text) {
 
 function normalizeRow(r) {
   const rawChoices = [];
+
   for (let n = 1; n <= 10; n++) {
     rawChoices.push((r[`choice${n}`] || "").trim());
   }
@@ -121,7 +124,8 @@ function normalizeRow(r) {
   const choices = rawChoices.filter((v) => v !== "");
   const answerNo = Number(r.answer_no);
 
-  if (!r.question || choices.length < 3) return null;
+  if (!r.question) return null;
+  if (choices.length < 4) return null;
   if (!(answerNo >= 1 && answerNo <= 10)) return null;
   if (!rawChoices[answerNo - 1]) return null;
 
@@ -174,7 +178,7 @@ function renderTitleCheckList(rows) {
     .map(
       (item) => `
       <label class="check-item">
-        <input type="checkbox" class="title-check" value="${escapeHtml(item.key)}" checked>
+        <input type="checkbox" class="title-check" value="${escapeHtml(item.key)}">
         <span>${escapeHtml(item.field_no)}：${escapeHtml(item.title)}（タイトル番号 ${escapeHtml(item.title_no)}）</span>
       </label>
     `
@@ -193,15 +197,18 @@ function makeQuiz() {
   }
 
   const selectedTitleKeys = getSelectedTitleKeys();
-  if (!selectedTitleKeys.length) {
-    statusEl.textContent = "タイトルを1つ以上選んでください。";
+
+  if (selectedTitleKeys.length !== 1) {
+    statusEl.textContent = "出題するタイトルは1つだけ選んでください。";
     return;
   }
 
   const inputTitle = $("titleInput").value.trim();
   const count = Math.max(1, Number($("countInput").value || 5));
 
-  const pool = allQuestions.filter((q) => selectedTitleKeys.includes(makeTitleKey(q)));
+  const pool = allQuestions.filter((q) =>
+    selectedTitleKeys.includes(makeTitleKey(q))
+  );
 
   if (pool.length < count) {
     statusEl.textContent = `対象問題が不足しています。現在 ${pool.length}問、必要 ${count}問です。`;
@@ -212,28 +219,38 @@ function makeQuiz() {
     .slice(0, count)
     .map((q, i) => buildQuestion(q, i + 1));
 
-  const uniqueTitles = [...new Set(generated.map((q) => q.title).filter(Boolean))];
-  const csvTitle = uniqueTitles.join("・");
-  currentTitle = inputTitle || csvTitle || "小テスト";
+  const csvTitle = generated[0]?.title || "小テスト";
+  currentTitle = inputTitle || csvTitle;
 
   renderPaper(currentTitle, generated, "answer");
   statusEl.textContent = `${currentTitle} を ${generated.length}問作成しました。`;
 }
 
 function buildQuestion(q, no) {
-  const wrongIndexes = q.choices
-    .map((_, i) => i)
-    .filter((i) => i !== q.answerIndex);
+  let shownChoices;
+  let correctDisplayIndex;
 
-  const pickedWrong = shuffle([...wrongIndexes]).slice(0, 2);
-  const shownIndexes = shuffle([q.answerIndex, ...pickedWrong]);
+  if (q.choices.length === 4) {
+    shownChoices = q.choices.map((text, idx) => ({
+      originalIndex: idx,
+      text,
+    }));
+    correctDisplayIndex = q.answerIndex;
+  } else {
+    const wrongIndexes = q.choices
+      .map((_, i) => i)
+      .filter((i) => i !== q.answerIndex);
 
-  const shownChoices = shownIndexes.map((idx) => ({
-    originalIndex: idx,
-    text: q.choices[idx],
-  }));
+    const pickedWrong = shuffle([...wrongIndexes]).slice(0, 3);
+    const shownIndexes = shuffle([q.answerIndex, ...pickedWrong]);
 
-  const correctDisplayIndex = shownIndexes.indexOf(q.answerIndex);
+    shownChoices = shownIndexes.map((idx) => ({
+      originalIndex: idx,
+      text: q.choices[idx],
+    }));
+
+    correctDisplayIndex = shownIndexes.indexOf(q.answerIndex);
+  }
 
   return {
     no,
@@ -250,7 +267,7 @@ function buildQuestion(q, no) {
 }
 
 function renderPaper(title, items, mode = "answer") {
-  const labels = ["ア", "イ", "ウ"];
+  const labels = ["1", "2", "3", "4"];
   const pages = [];
 
   for (let i = 0; i < items.length; i += PAGE_SIZE) {
@@ -301,6 +318,7 @@ function renderQuestions(items, labels, mode) {
           <div class="answer-box ${mode === "answer" ? "answer-box-filled answer-red" : ""}">
             ${mode === "answer" ? labels[item.correctDisplayIndex] : ""}
           </div>
+
           <div class="question-main">
 
             ${
@@ -315,17 +333,18 @@ function renderQuestions(items, labels, mode) {
 
             <div class="question-text">
               <strong>${item.no}.</strong>
-              <span class="question-title-inline">${escapeHtml(item.title)}</span>
               ${escapeHtml(item.question)}
             </div>
 
-            ${item.shownChoices
-              .map(
-                (c, i) => `
-              <div class="choice">${labels[i]}　${escapeHtml(c.text)}</div>
-            `
-              )
-              .join("")}
+            <div class="choices">
+              ${item.shownChoices
+                .map(
+                  (c, i) => `
+                <div class="choice">${labels[i]}　${escapeHtml(c.text)}</div>
+              `
+                )
+                .join("")}
+            </div>
           </div>
         </div>
       </div>
@@ -365,7 +384,7 @@ async function savePdf(mode) {
       orientation: "portrait",
     },
     pagebreak: {
-      mode: ["css"],
+      mode: ["css", "legacy"],
     },
   };
 
